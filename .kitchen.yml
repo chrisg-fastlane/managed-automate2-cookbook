@@ -11,7 +11,7 @@ driver:
 
 provisioner:
   name: chef_zero
-  policyfile: policies/chef-automate2.rb
+  policyfile: policyfiles/chef-automate2.rb
   always_update_cookbooks: true
   product_name: chef
   product_version: 13.8.5
@@ -24,20 +24,31 @@ platforms:
 
 suites:
   - name: default
-    attributes:
-      ma2:
-        aib:
-          dir: /tmp/test
+    verifier:
+      inspec_tests:
+        - test/integration/default
+  - name: url
+    provisioner:
+      policyfile: policyfiles/url.rb
+    verifier:
+      inspec_tests:
+        - test/integration/default
+  - name: backup
+    provisioner:
+      named_run_list: backup
+    verifier:
+      inspec_tests:
+        - test/integration/default
+        - test/integration/backup
+  - name: restore
+    provisioner:
+      policyfile: policyfiles/restore.rb
     verifier:
       inspec_tests:
         - test/integration/default
   - name: aib
     provisioner:
       named_run_list: aib
-    attributes:
-      ma2:
-        aib:
-          dir: /tmp/test
     verifier:
       inspec_tests:
         - test/integration/aib
@@ -52,3 +63,4 @@ suites:
     verifier:
       inspec_tests:
         - test/integration/default
+        - test/integration/backup

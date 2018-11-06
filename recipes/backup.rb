@@ -2,54 +2,45 @@
 # Cookbook:: managed-automate2
 # Recipe:: backup
 #
+# https://automate.chef.io/docs/backup/#configuring-backups
 
-# The backup is made to a directory tree under a hardcoded
-# directory which is named by the timestamp of the time of
-# backup.  This value appears to be significant during restore
-# so we need to retain that timestamp.
-#
-# Optional output is the backup-result.json file which contains
-# the timestamp.  We use and include this file when we create a
-# tarball of the backup so we can correctly reconstruct the
-# backup when restoring.
+# Configure A2 internal backups
+intbackupdir = node['ma2']['backup']['internal']['dir']
+directory intbackupdir
 
-# where we store our backups
-backupdir = node['ma2']['backup']['dir']
+backupconfig = Chef::Config[:file_cache_path] + '/backup_config.toml'
 
-# where a2 creates its backups
-a2backupdir = '/var/opt/chef-automate/backups'
+template backupconfig do
+  source 'backup_config.toml.erb'
+end
 
-backupcommand = a2backupdir + '/backup.sh'
+execute "chef-automate config patch #{backupconfig}" do
+  action :nothing
+  subscribes :run, "template[#{backupconfig}]", :immediately
+end
 
-directory backupdir
+# Configure external backup storage
+extbackupdir = node['ma2']['backup']['external']['dir']
+directory extbackupdir
+
+# Schedule regular backups & copy via cron
+command = intbackupdir + '/backup.sh'
 
 # shell script for backup
-file backupcommand do
-  mode '0700'
-  content "#!/bin/sh
-
-# work from a2's backup directory
-cd #{a2backupdir}
-
-# take backup
-/usr/bin/chef-automate backup create --result-json backup-result.json
-
-# backup_id is the timestamp as stored in the JSON log
-backup_id=`cat backup-result.json | sed 's/.*backup_id\":\"\\([0-9]*\\).*/\\1/g'`
-
-# tar the timestamped backup directory and JSON file
-tar -czf #{backupdir}/#{node['ma2']['backup']['prefix']}${backup_id}.tgz backup-result.json $backup_id
-
-# tidy up
-rm -rf ${backup_id}
-
-# that's all
-"
+file command do
+   mode '0700'
+   content "#!/bin/sh
+cd #{intbackupdir}
+/bin/chef-automate backup create --result-json backup-result.json > backup.log 2>&1
+backup_id=`sed 's/.*backup_id\":\"\\([0-9]*\\).*/\\1/g' backup-result.json`
+tar -czf #{extbackupdir}/#{node['ma2']['backup']['prefix']}${backup_id}.tgz backup-result.json $backup_id
+rm -rf ${backup_id}"
 end
 
 # schedule backup on a recurring cron job. Override attributes as necessary
-cron 'automate-ctl create-backup' do
-  command "cd #{a2backupdir}; #{backupcommand} > /tmp/backup.log 2>&1"
+cron 'chef-automate backup create' do
+  environment ({ 'PWD' => intbackupdir })
+  command command
   minute node['ma2']['backup']['cron']['minute']
   hour node['ma2']['backup']['cron']['hour']
   day node['ma2']['backup']['cron']['day']
