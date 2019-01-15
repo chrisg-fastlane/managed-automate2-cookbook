@@ -134,11 +134,13 @@ unless node['ma2']['license']['string'].nil?
   end
 end
 
-execute 'chef-automate license apply' do
-  command "#{chefautomate} license apply #{licensefile}"
-  not_if "#{chefautomate} license status | grep '^License ID'"
+unless node['ma2']['license']['string'].nil? && node['ma2']['license']['url'].nil?
+  execute 'chef-automate license apply' do
+    command "#{chefautomate} license apply #{licensefile}"
+    not_if "#{chefautomate} license status | grep '^License ID'"
+  end
 end
-
+  
 # should we push the contents of automate-credentials.toml into an attribute or
 # log if we don't want logins on the box?
 # should we push the admin-token for later? ruby-block to an attribute?
