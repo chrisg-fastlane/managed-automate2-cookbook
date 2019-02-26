@@ -46,3 +46,5 @@ suites:
       inspec_tests:
         - test/integration/default
 ```
+
+N.B. This repo should bear GPG commits.
